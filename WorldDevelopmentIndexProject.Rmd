@@ -1,0 +1,167 @@
+---
+title: "Final Project"
+output: html_document
+date: "2023-04-22"
+---
+
+```{r setup, include=FALSE}
+setwd ("/Users/jumaabdi/Desktop/G_P/Spring23/RDS/Final Project")
+library(markdown)
+library(ggplot2) ## install.packages('ggplot2')
+library(tidyverse)
+library(maps)
+library(htmltab)
+library(ggmap)
+library(jsonlite)
+library(haven)
+library(psych)
+library(dplyr)
+
+#install.packages('sjPlot')
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+```
+
+```{r data}
+global_data <- read.csv("merged_data_final.csv")
+head(global_data)
+summary(global_data$dai)
+describe(global_data$adult_pop)
+```
+
+
+
+
+
+
+
+```{r results = "asis"}
+mod1 <- lm(data=global_data,new_bus_rate~dai_business+log_adult_pop)
+mod2 <- lm(data=global_data,new_bus_rate~dai_business+log_adult_pop+years_of_schooling)
+mod3 <- lm(data=global_data,new_bus_rate~dai_business+log_adult_pop+years_of_schooling + freedom_of_expression)
+mod4 <- lm(data=global_data,new_bus_rate~dai_business+log_adult_pop+years_of_schooling + freedom_of_expression +schooling_high)
+
+tab_model(mod1, mod2, mod3, mod4)
+
+pdf(file = "/Users/jumaabdi/Desktop/G_P/Spring23/RDS/Final Project/statistics_table.pdf")
+describe(global_data[c("dai", "dai_business", "adult_pop", "num_of_new_bus", "new_bus_rate", "freedom_of_expression", "years_of_schooling")])
+dev.off()
+
+
+pdf(file = "/Users/jumaabdi/Desktop/G_P/Spring23/RDS/Final Project/statistics_table.pdf")
+summary_table <- cbind(
+  Mean = apply(global_data[, c("dai", "dai_business", "adult_pop", "num_of_new_bus", "new_bus_rate", "freedom_of_expression", "years_of_schooling")], 2, mean),
+  SD = apply(global_data[, c("dai", "dai_business", "adult_pop", "num_of_new_bus", "new_bus_rate", "freedom_of_expression", "years_of_schooling")], 2, sd),
+  n = sapply(global_data[, c("dai", "dai_business", "adult_pop", "num_of_new_bus", "new_bus_rate", "freedom_of_expression", "years_of_schooling")], length)
+)
+
+# print the summary table
+summary_table
+dev.off()
+```
+
+
+```{r plotting the data}
+#Plot DAI ranking and New Business Rate
+ggplot(data = global_data, aes(dai_business, new_bus_rate, color = dai_business)) +
+  geom_jitter()+
+  geom_smooth(method = "lm", col = "red",formula = y~poly(x,2),se=F)+
+  
+  geom_point(aes(color = new_bus_rate), alpha = 0.7) +
+  #Title and axis labels
+  labs(title = "DAI Ranking vs New Business Rate", x = "DAI Ranking", y = "New Business Rate", color = "New Business Rate") +
+  scale_size(range = c(2, 10), labels = comma) +
+  scale_color_continuous(labels = comma) +
+  theme_minimal()
+
+#Scatter Plot New Business Rate and Freedom of Expression
+ggplot(data = global_data, aes(freedom_of_expression, new_bus_rate, color = freedom_of_expression)) +
+  geom_jitter()+
+  geom_smooth(method = "lm", col = "red",formula = y~poly(x,2),se=F)+
+  labs(title = "'Freedom of Expression' ranking and 'New Business Rate'",
+       x = "Freedom of Expression", y = "New Business Rate", color = "New Business Rate") +
+  geom_point(aes(color = new_bus_rate), alpha = 0.7) +
+  scale_color_continuous(labels = comma) +
+  theme_minimal()
+
+#new_busi_rate <- as.numeric(global_data$new_bus_rate)
+
+#pdf(file = "/Users/jumaabdi/Desktop/G_P/Spring23/RDS/Final Project/PDF_Plot.pdf") #saves files in PDF
+hist(global_data$new_bus_rate, prob=T, col= 'green', 
+     main = "Distribution of Countries by New Business Rate",
+     xlab = "New Business Rate", ylab = "Density")
+lines(density(global_data$new_bus_rate, na.rm=T), col='red')+
+theme_minimal()
+#dev.off()
+
+theme_set(theme_classic())
+
+# Plot counties with scale
+
+
+# Read in the data
+top_10 <- global_data %>% 
+  top_n(10, wt = adult_pop)
+
+# Create a ggplot DAI ranking and GDP per capita
+
+library(scales)
+
+pop_gdp <- ggplot(data = global_data, aes(x = dai, y = gdppc)) +
+  geom_smooth(method = "lm", col = "red",formula = y~poly(x,2),se=F)+
+  geom_point(aes(size = adult_pop, color = adult_pop), alpha = 0.7) +
+  geom_text(data = top_10, aes(label = country), size = 3, hjust = 0.5, vjust = -1, color = "red") +
+  #Title and axis labels
+  labs(title = "DAI Ranking vs GDP per capita", x = "DAI Ranking", y = "GDP per capita (USD)", color = "Adult Population", size = "Density") +
+  scale_size(range = c(2, 10), labels = comma) +
+  scale_color_continuous(labels = comma) +
+  theme_minimal()
+
+# Print the plot
+print(pop_gdp)
+
+
+```
+
+
+```{r plotting the data}
+library(htmltab)
+library(maps)
+pdf(file = "/Users/jumaabdi/Desktop/G_P/Spring23/RDS/Final Project/'PDF_Heatmap.pdf'")
+
+
+#converting srting data to integer
+#population$population <- gsub(",", "", population$population)
+#population$population <- as.integer(population$population)
+#population$region <- tolower(population$region)
+#population
+
+# Get state data in the form of latitude and longitude coordinates
+world_map <- map_data('world')
+head(world_map)
+colnames(global_data)[1] <- "region"
+# Merging the population and state data
+world_map_ranking <- merge(world_map, global_data, by = "region", all.x = TRUE)
+world_map_ranking
+
+# Create the map, with missing countries colored white
+
+ggplot(data = world_map_ranking) +
+  geom_path(aes(x = long, y = lat, group = group), color = "black") +
+  geom_polygon(aes(x = long, y = lat, group = group, fill = dai)) +
+  scale_fill_gradient(low = "red", high = "green", na.value = "white") +
+  labs(title = "DAI ranking", fill = "DAI Ranking") +
+  coord_fixed(1.3) +
+  theme(panel.background = element_rect(fill = "lightgray", color = "black"))
+
+
+ggplot(data = world_map_ranking) +
+  geom_path(aes(x = long, y = lat, group = group), color = "black") +
+  geom_polygon(aes(x = long, y = lat, group = group, fill = freedom_of_expression)) +
+  scale_fill_gradient(low = "red", high = "green", na.value = "white") +
+  labs(title = "Freedom of expression ranking", fill = "Freedom of Expression") +
+  coord_fixed(1.3) +
+  theme(panel.background = element_rect(fill = "lightgray", color = "black"))
+
+```
